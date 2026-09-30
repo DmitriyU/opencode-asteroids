@@ -1,0 +1,78 @@
+# AGENTS.md
+
+Vanilla HTML5 Canvas Asteroids clone. 4 files, no build step, no dependencies,
+no package.json, no tests, no linter, no CI. `game.js` is the entire game.
+
+## Run it
+
+```bash
+npx serve .        # then http://localhost:3000
+```
+
+Opening `index.html` via `file://` also works — there are no ES modules, no
+`fetch`, and no asset loading. Prefer a served page for anything nontrivial.
+
+## Hard constraints (breaking these silently breaks the game)
+
+- `index.html` loads `game.js` as a **classic script** (`<script src>`, no
+  `type="module"`). Do not add `import`/`export`, and do not wrap the file in an
+  IIFE or module. Game state (`ship`, `bullets`, `asteroids`, `particles`,
+  `score`, `lives`, `level`, `state`, `deadTimer`) is declared as top-level `let`
+  and reassigned from `initGame`/`nextLevel`; that only works at script top level.
+- No test runner and no lint config exist. **Do not add one unless asked** — it
+  would be the only tooling in the repo. Verification is manual: load the page
+  and exercise the state.
+- Canvas size is hardcoded in **two** places that must stay in sync:
+  `const W = 800` / `const H = 600` (game.js:5-6) and the `width`/`height`
+  attributes on `<canvas>` (index.html:23).
+
+## Architecture notes
+
+- **State machine** (`state`): `'playing' | 'dead' | 'gameover'`. `update()`
+  early-returns per state, so new logic must be placed in the `'playing'` branch
+  only, or it silently won't run in `'dead'`/`'gameover'`.
+- **Asteroid sizes are 1-based indices** into three parallel arrays in game.js:61-63
+  (`RADII`, `SPEEDS`, `POINTS`; index 0 unused). 1=small, 2=medium, 3=large.
+  `split()` returns two of `size - 1`, so scores and radii are always read via
+  `POINTS[a.size]` / `RADII[size]`. Adding a size means editing all three arrays
+  plus `spawnAsteroids`.
+- **Ship spawn is hardcoded to center** in `Ship.reset()` (game.js:126-127), and
+  `spawnAsteroids` avoids a 130px `SAFE_DIST` radius around `W/2, H/2` to keep
+  the first wave from killing you. Change one and you must change the other.
+- **`wrap()` is applied to ship, bullets, and asteroids, but not `Particle`.**
+  Particles intentionally die at the edges. Don't "fix" that.
+- **Collision is center-distance, not shape-based.** Bullets use
+  `dist < a.radius` (ignores bullet radius); the ship uses
+  `ship.radius + a.radius * 0.82` for forgiveness, and only when
+  `ship.invincible <= 0`.
+
+## Input gotcha
+
+`pressed(code)` (game.js:20) **consumes** the flag — it reads `justPressed[code]`
+and resets it to `false`. Call it at most once per code per frame; a second call
+returns `false` and the input is lost. Because the flag persists until read, a
+`Space` press during the `'dead'` state fires a shot the instant state returns to
+`'playing'`. `keys[code]` is the separate held-state map.
+
+## Style
+
+- **All prose in the repo is Spanish** — code comments, UI strings (`SCORE`,
+  `NIVEL`, `GAME OVER`, `PUNTAJE`), and the README. Write new comments and user-facing
+  text in Spanish to match.
+- 2-space indent; `'use strict'` at the top; `// ── Section ────` banner comments
+  separate each class/section. Constructor bodies align `=` in columns.
+- Constants that are tuning values (speeds, radii, cooldowns) are declared
+  inline in their class, not hoisted to a config block.
+
+## Known doc drift
+
+The README's opening paragraph advertises "power-ups especiales" and a unique
+asteroid type "la estrella fugaz" — **neither exists in `game.js`**. The README
+is a stale/overstated spec; trust `game.js` as the source of truth. The controls
+and score tables in the README *are* accurate.
+
+## Git
+
+`origin` = your fork (`DmitriyU`), `upstream` = the original course repo
+(`DevTalles-corp`). No documented branch or PR convention. Commit only when
+explicitly asked; do not push to `upstream`.
