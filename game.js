@@ -246,6 +246,9 @@ class Particle {
 }
 
 // ── Power-up (velocidad x2) ───────────────────────────────────────────────────
+const MAGNET_DIST = 150;   // radio de atracción hacia la nave
+const MAGNET_PULL = 420;   // fuerza de atracción (px/s²)
+
 class PowerUp {
   constructor(x, y) {
     this.x = x;
@@ -253,7 +256,7 @@ class PowerUp {
     this.radius   = 10;
     this.rotSpeed = rand(-1.5, 1.5);
     this.rot      = rand(0, Math.PI * 2);
-    this.ttl      = 10;   // segundos antes de desaparecer
+    this.ttl      = 20;   // segundos antes de desaparecer
     this.dead     = false;
 
     // Deriva lenta en una dirección aleatoria
@@ -329,6 +332,7 @@ function initGame() {
   level  = 1;
   state  = 'playing';
   spawnAsteroids(4);
+  powerUps.push(new PowerUp(rand(0, W), rand(0, H)));
 }
 
 function nextLevel() {
@@ -338,6 +342,7 @@ function nextLevel() {
   powerUps  = [];
   ship.reset();
   spawnAsteroids(3 + level);
+  powerUps.push(new PowerUp(rand(0, W), rand(0, H)));
 }
 
 function explode(x, y, count = 8) {
@@ -390,7 +395,7 @@ function update(dt) {
 
   // Bala vs asteroide
   const newAsteroids = [];
-  const DROP_CHANCE = 0.15;   // probabilidad de soltar un power-up
+  const DROP_CHANCE = 0.25;   // probabilidad de soltar un power-up
   for (const b of bullets) {
     for (const a of asteroids) {
       if (!a.dead && !b.dead && dist(b, a) < a.radius) {
@@ -406,14 +411,21 @@ function update(dt) {
   asteroids = asteroids.filter(a => !a.dead).concat(newAsteroids);
   bullets   = bullets.filter(b => !b.dead);
 
-  // Power-ups
+  // Power-ups (con imán: se sienten atraídos si la nave se acerca)
   powerUps.forEach(p => p.update(dt));
+  for (const p of powerUps) {
+    const d = dist(ship, p);
+    if (d < MAGNET_DIST && d > 1) {
+      p.vx += (ship.x - p.x) / d * MAGNET_PULL * dt;
+      p.vy += (ship.y - p.y) / d * MAGNET_PULL * dt;
+    }
+  }
   powerUps = powerUps.filter(p => !p.dead);
 
   // Nave vs power-up
   if (!ship.dead) {
     for (const p of powerUps) {
-      if (dist(ship, p) < ship.radius + p.radius) {
+      if (dist(ship, p) < ship.radius + p.radius * 3) {
         p.dead = true;
         ship.applySpeedBoost();
         explode(p.x, p.y, 6);
