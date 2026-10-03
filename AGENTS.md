@@ -30,7 +30,23 @@ Opening `index.html` via `file://` also works — there are no ES modules, no
 
 - **State machine** (`state`): `'playing' | 'dead' | 'gameover'`. `update()`
   early-returns per state, so new logic must be placed in the `'playing'` branch
-  only, or it silently won't run in `'dead'`/`'gameover'`.
+  only, or it silently won't run in `'dead'`/`'gameover'`. The one deliberate
+  exception is the skin cycle at the very top of `update()`, above every branch,
+  because it must work in all three states.
+- **Ship skins** (`SKINS` in game.js): a data-only list of `{id, name, stroke,
+  flame, hull}` where `hull` is a local-space vertex list drawn by the shared
+  `drawHull(skin)` helper — the same data-driven approach as `Asteroid.verts`, so
+  there are no art assets. `Ship.draw()` and `drawLifeIcon()` both call it, which
+  is why the HUD icons track the active hull. Two invariants: every hull's nose
+  stays near `x = +20` (bullets spawn at a fixed `NOSE = 21`) and its rear near
+  `x = -12` (matches `ship.radius = 12`). Add a skin by adding an object; the
+  flame anchor is derived from the hull's rearmost x, so it needs no extra field.
+- **Skin persistence** is `localStorage` wrapped in try/catch (`file://` and
+  private mode throw). `loadSkin()` runs once at bootstrap, deliberately *not*
+  inside `initGame()` — a restart must not clobber the choice. Skins are stored by
+  `id`, not array index, so reordering `SKINS` can't scramble a saved preference.
+- **`pressed(code)` is consumed**, so `KeyC` is read at most once per frame, at
+  the top of `update()`.
 - **Asteroid sizes are 1-based indices** into three parallel arrays in game.js:61-63
   (`RADII`, `SPEEDS`, `POINTS`; index 0 unused). 1=small, 2=medium, 3=large.
   `split()` returns two of `size - 1`, so scores and radii are always read via
@@ -66,10 +82,11 @@ returns `false` and the input is lost. Because the flag persists until read, a
 
 ## Known doc drift
 
-The README's opening paragraph advertises "power-ups especiales" and a unique
-asteroid type "la estrella fugaz" — **neither exists in `game.js`**. The README
-is a stale/overstated spec; trust `game.js` as the source of truth. The controls
-and score tables in the README *are* accurate.
+The README's *Descripción* section calls the power-ups "especiales" and mentions
+"la estrella fugaz" without noting that the star expires on a timer rather than
+behaving like other asteroids. Everything it lists does exist in `game.js`; trust
+`game.js` as the source of truth when the prose is vague. The controls and score
+tables in the README *are* accurate.
 
 ## Git
 
