@@ -30,6 +30,25 @@ Luego visita `http://localhost:3000`.
 | `↑`       | Propulsar  |
 | `Espacio` | Disparar   |
 | `Mayús`   | Escudo (mantener) |
+| `C`       | Cambiar skin |
+
+## Skins
+
+La nave tiene 5 apariencias configurables, todas disponibles desde el principio.
+`C` pasa a la siguiente (también funciona con la nave muerta o en `GAME OVER`) y el
+nombre aparece un instante en la parte inferior. La elección se guarda en
+`localStorage`, así que se conserva al recargar.
+
+| Skin       | Color   | Silueta                     |
+| ---------- | ------- | --------------------------- |
+| `CLÁSICA`  | Blanco  | Triángulo con muesca trasera |
+| `DELTA`    | Cian    | Dardo con alas barridas     |
+| `MANTA`    | Ámbar   | Rayón de alas anchas y cola |
+| `CRUZ`     | Verde   | Casco en forma de cruz      |
+| `DIAMANTE` | Violeta | Rombo facetado              |
+
+La skin también cambia los iconos de vida del HUD y el color de la llama del
+propulsor.
 
 ## Puntuación
 
@@ -47,3 +66,5 @@ Luego visita `http://localhost:3000`.
 - Partículas de explosión al destruir asteroides
 - Estrella fugaz: más rápida que el resto, no se fragmenta y desaparece a los 7 segundos (barra de vida en la esquina superior izquierda)
 - Escudo: mantén pulsada `Mayús` para alzar una burbuja que rebota los asteroides y la estrella fugaz sin hacer daño. Consume energía mientras la mantienes y se recarga al soltarla (barra `ESCUDO`)
+- Power-up de velocidad x2 con imán de atracción
+- 5 skins para la nave, con cambio en caliente y persistencia entre recargas
