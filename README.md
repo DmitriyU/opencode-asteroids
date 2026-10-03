@@ -45,3 +45,4 @@ Luego visita `http://localhost:3000`.
 - Asteroides se parten en fragmentos más pequeños al ser destruidos
 - Partículas de explosión al destruir asteroides
 - Estrella fugaz: más rápida que el resto, no se fragmenta y desaparece a los 7 segundos (barra de vida en la esquina superior izquierda)
+- Power-ups (diamantes que imantan hacia la nave): velocidad x2 o disparo x3 durante 5 segundos, indicados con barra de tiempo en la esquina superior izquierda

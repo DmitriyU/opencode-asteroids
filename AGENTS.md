@@ -64,12 +64,21 @@ returns `false` and the input is lost. Because the flag persists until read, a
 - Constants that are tuning values (speeds, radii, cooldowns) are declared
   inline in their class, not hoisted to a config block.
 
-## Known doc drift
+## Features that exist now (older notes claimed they didn't)
 
-The README's opening paragraph advertises "power-ups especiales" and a unique
-asteroid type "la estrella fugaz" — **neither exists in `game.js`**. The README
-is a stale/overstated spec; trust `game.js` as the source of truth. The controls
-and score tables in the README *are* accurate.
+- **`ShootingStar extends Asteroid`** — spawned from `initGame`/`nextLevel` and
+  re-spawned every `STAR_SPAWN_EVERY` seconds while none is alive. It inherits
+  `Asteroid.update`, so `ttl` is decremented *after* movement; `split()` returns
+  `[]`, and `points`/`burst` are overridden (300 pts / 22 particles).
+- **`PowerUp`** — 25% drop on asteroid kill (`DROP_CHANCE`), 20s ttl, magnet pull
+  inside `MAGNET_DIST`. Two types in `POWERUP_TYPES`: `boost` (`ship.speedBoost`,
+  doubles `THRUST`) and `triple` (`ship.tripleShot`, `tryShoot` returns 3 bullets
+  offset laterally by `GAP` but with an identical angle). Both last 5s
+  (`BOOST_TIME`/`TRIPLE_TIME`), are cleared by `killShip`, and reset in
+  `Ship.reset()`. The inner glyph in `PowerUp.draw` distinguishes them
+  (1 bar vs 3 bars).
+- All three timer bars (`drawTimerBar`) stack down the top-left corner: shooting
+  star first, then boost, then triple — `row` advances by 34 each time.
 
 ## Git
 
