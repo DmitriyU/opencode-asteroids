@@ -29,6 +29,7 @@ Luego visita `http://localhost:3000`.
 | `←` `→`   | Rotar nave |
 | `↑`       | Propulsar  |
 | `Espacio` | Disparar   |
+| `Mayús`   | Escudo (mantener) |
 
 ## Puntuación
 
@@ -45,3 +46,4 @@ Luego visita `http://localhost:3000`.
 - Asteroides se parten en fragmentos más pequeños al ser destruidos
 - Partículas de explosión al destruir asteroides
 - Estrella fugaz: más rápida que el resto, no se fragmenta y desaparece a los 7 segundos (barra de vida en la esquina superior izquierda)
+- Escudo: mantén pulsada `Mayús` para alzar una burbuja que rebota los asteroides y la estrella fugaz sin hacer daño. Consume energía mientras la mantienes y se recarga al soltarla (barra `ESCUDO`)

@@ -184,8 +184,18 @@ class ShootingStar extends Asteroid {
 // ── Ship ──────────────────────────────────────────────────────────────────────
 const BOOST_TIME = 5;   // duración del power-up de velocidad x2
 
+// Escudo: burbuja que se alza manteniendo pulsada Mayús y se recarga al soltarla
+const SHIELD_RADIUS   = 22;    // radio de la burbuja alrededor de la nave
+const SHIELD_DRAIN    = 0.34;  // energía/s consumida mientras se mantiene
+const SHIELD_RECHARGE = 0.25;  // energía/s recuperada al soltarla
+const SHIELD_MIN      = 0.15;  // carga mínima necesaria para volver a alzarla
+const SHIELD_MIN_OUT  = 60;    // px/s mínimos de salida tras el rebote
+
 class Ship {
-  constructor() { this.reset(); }
+  constructor() {
+    this.shield = 1;   // energía del escudo (0-1), a tope en cada partida nueva
+    this.reset();
+  }
 
   reset() {
     this.x      = W / 2;
@@ -198,6 +208,9 @@ class Ship {
     this.invincible    = 3;
     this.shootCooldown = 0;
     this.speedBoost    = 0;   // segundos restantes de velocidad x2
+    // La energía del escudo no se reinicia aquí: sobrevive al reaparición y al
+    // cambio de nivel; solo una partida nueva lo repone a tope
+    this.shieldActive  = false;
     this.dead          = false;
   }
 
@@ -206,6 +219,17 @@ class Ship {
     if (this.invincible    > 0) this.invincible    -= dt;
     if (this.shootCooldown > 0) this.shootCooldown -= dt;
     if (this.speedBoost    > 0) this.speedBoost    -= dt;
+
+    // Escudo: se alza mientras haya energía y se mantenga Mayús pulsada.
+    // Por debajo del mínimo no puede volver a levantarse hasta recargar.
+    const holding = keys['ShiftLeft'] || keys['ShiftRight'];
+    if (holding && this.shield > SHIELD_MIN) {
+      this.shieldActive = true;
+      this.shield = Math.max(0, this.shield - SHIELD_DRAIN * dt);
+    } else {
+      this.shieldActive = false;
+      this.shield = Math.min(1, this.shield + SHIELD_RECHARGE * dt);
+    }
 
     const ROT   = 3.5;   // rad/s
     const THRUST = 260;  // px/s²
@@ -270,6 +294,18 @@ class Ship {
       ctx.lineTo(-8,  4);
       ctx.strokeStyle = 'rgba(255, 130, 0, 0.85)';
       ctx.stroke();
+    }
+
+    // Burbuja de escudo, más tenue cuanto menos energía le queda
+    if (this.shieldActive) {
+      const low = this.shield < SHIELD_MIN * 2;
+      if (!low || Math.floor(this.shield * 20) % 2 === 0) {
+        ctx.strokeStyle = `rgba(120,220,255,${(0.25 + 0.4 * this.shield).toFixed(2)})`;
+        ctx.lineWidth   = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, SHIELD_RADIUS, 0, Math.PI * 2);
+        ctx.stroke();
+      }
     }
 
     ctx.restore();
@@ -427,10 +463,40 @@ function explode(x, y, count = 8) {
   for (let i = 0; i < count; i++) particles.push(new Particle(x, y));
 }
 
+// Rebote de un asteroide contra la burbuja: no muere ni puntúa, solo cambia de rumbo
+function deflectAsteroid(a) {
+  const dx = a.x - ship.x;
+  const dy = a.y - ship.y;
+
+  // El solapamiento a través del borde toroidal se ignora: la normal apuntaría
+  // en sentido contrario y el rebote cruzaría la nave de lado a lado
+  if (Math.abs(dx) > W / 2 || Math.abs(dy) > H / 2) return;
+
+  const d  = Math.max(1, Math.hypot(dx, dy));
+  const nx = dx / d;
+  const ny = dy / d;
+
+  // Reflexión especular de la velocidad sobre la normal
+  const vn = a.vx * nx + a.vy * ny;
+  a.vx -= 2 * vn * nx;
+  a.vy -= 2 * vn * ny;
+
+  // Empuje mínimo hacia fuera: un rebote rasante podría dejar al asteroide
+  // rozando la burbuja y golpeándola de nuevo cada frame
+  const out = a.vx * nx + a.vy * ny;
+  if (out < SHIELD_MIN_OUT) {
+    a.vx += nx * (SHIELD_MIN_OUT - out);
+    a.vy += ny * (SHIELD_MIN_OUT - out);
+  }
+
+  explode(a.x, a.y, 4);
+}
+
 function killShip() {
   explode(ship.x, ship.y, 14);
   ship.dead = true;
-  ship.speedBoost = 0;   // el boost no sobrevive a la muerte
+  ship.speedBoost   = 0;   // el boost no sobrevive a la muerte
+  ship.shieldActive = false;   // la burbuja se apaga; la energía sí se conserva
   lives--;
   if (lives <= 0) {
     state = 'gameover';
@@ -520,8 +586,17 @@ function update(dt) {
     powerUps = powerUps.filter(p => !p.dead);
   }
 
-  // Nave vs asteroide
-  if (ship.invincible <= 0) {
+  // Escudo: los asteroides rebotan contra la burbuja sin hacer daño
+  if (!ship.dead && ship.shieldActive) {
+    for (const a of asteroids) {
+      if (dist(ship, a) < SHIELD_RADIUS + a.radius) deflectAsteroid(a);
+    }
+  }
+
+  // Nave vs asteroide. Con el escudo alzado no hay daño: el rebote empuja al
+  // asteroide hacia fuera, pero el solapamiento que ya existía en el frame en
+  // que se levantó la burbuja lo dejaría dentro del radio de impacto
+  if (ship.invincible <= 0 && !ship.shieldActive) {
     for (const a of asteroids) {
       if (dist(ship, a) < ship.radius + a.radius * 0.82) {
         killShip();
@@ -593,8 +668,14 @@ function drawHUD() {
   }
 
   // Indicador de velocidad x2 con barra de tiempo restante
-  if (!ship.dead && ship.speedBoost > 0)
+  if (!ship.dead && ship.speedBoost > 0) {
     drawTimerBar(14, row, ship.speedBoost / BOOST_TIME, '#0ff', 'VELOCIDAD x2');
+    row += 34;
+  }
+
+  // Energía del escudo: visible mientras está activo o aún recargándose
+  if (!ship.dead && (ship.shieldActive || ship.shield < 1))
+    drawTimerBar(14, row, ship.shield, '#78dcff', 'ESCUDO');
 }
 
 function drawOverlay(title, sub) {
