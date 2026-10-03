@@ -248,7 +248,8 @@ function drawHull(skin) {
 }
 
 // ── Ship ──────────────────────────────────────────────────────────────────────
-const BOOST_TIME = 5;   // duración del power-up de velocidad x2
+const BOOST_TIME  = 5;   // duración del power-up de velocidad x2
+const TRIPLE_TIME = 5;   // duración del power-up de disparo x3
 
 // Escudo: burbuja que se alza manteniendo pulsada Mayús y se recarga al soltarla
 const SHIELD_RADIUS   = 22;    // radio de la burbuja alrededor de la nave
@@ -274,6 +275,7 @@ class Ship {
     this.invincible    = 3;
     this.shootCooldown = 0;
     this.speedBoost    = 0;   // segundos restantes de velocidad x2
+    this.tripleShot    = 0;   // segundos restantes de disparo x3
     // La energía del escudo no se reinicia aquí: sobrevive al reaparición y al
     // cambio de nivel; solo una partida nueva lo repone a tope
     this.shieldActive  = false;
@@ -285,6 +287,7 @@ class Ship {
     if (this.invincible    > 0) this.invincible    -= dt;
     if (this.shootCooldown > 0) this.shootCooldown -= dt;
     if (this.speedBoost    > 0) this.speedBoost    -= dt;
+    if (this.tripleShot    > 0) this.tripleShot    -= dt;
 
     // Escudo: se alza mientras haya energía y se mantenga Mayús pulsada.
     // Por debajo del mínimo no puede volver a levantarse hasta recargar.
@@ -322,13 +325,24 @@ class Ship {
     this.speedBoost = BOOST_TIME;
   }
 
+  applyTripleShot() {
+    this.tripleShot = TRIPLE_TIME;
+  }
+
   tryShoot() {
     if (this.shootCooldown > 0 || this.dead) return [];
     this.shootCooldown = 0.2;
     const NOSE = 21;
     const ox = this.x + Math.cos(this.angle) * NOSE;
     const oy = this.y + Math.sin(this.angle) * NOSE;
-    return [new Bullet(ox, oy, this.angle)];
+
+    if (this.tripleShot <= 0) return [new Bullet(ox, oy, this.angle)];
+
+    // Tres disparos en línea recta: mismo ángulo, separados solo lateralmente
+    const GAP = 10;
+    const px = -Math.sin(this.angle);   // perpendicular a la proa
+    const py =  Math.cos(this.angle);
+    return [-GAP, 0, GAP].map(off => new Bullet(ox + px * off, oy + py * off, this.angle));
   }
 
   draw() {
@@ -404,14 +418,21 @@ class Particle {
   }
 }
 
-// ── Power-up (velocidad x2) ───────────────────────────────────────────────────
+// ── Power-up (velocidad x2 / disparo x3) ───────────────────────────────────────
 const MAGNET_DIST = 150;   // radio de atracción hacia la nave
 const MAGNET_PULL = 420;   // fuerza de atracción (px/s²)
+
+// Tipos posibles: color de trazo y etiqueta del HUD
+const POWERUP_TYPES = {
+  boost:  { color: '#0ff', label: 'VELOCIDAD x2' },
+  triple: { color: '#f4f', label: 'DISPARO x3'   },
+};
 
 class PowerUp {
   constructor(x, y) {
     this.x = x;
     this.y = y;
+    this.type      = Math.random() < 0.5 ? 'boost' : 'triple';   // 50/50
     this.radius   = 10;
     this.rotSpeed = rand(-1.5, 1.5);
     this.rot      = rand(0, Math.PI * 2);
@@ -440,7 +461,7 @@ class PowerUp {
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.rot);
-    ctx.strokeStyle = '#0ff';
+    ctx.strokeStyle = POWERUP_TYPES[this.type].color;
     ctx.lineWidth   = 1.5;
     ctx.lineJoin    = 'round';
 
@@ -453,9 +474,17 @@ class PowerUp {
     ctx.closePath();
     ctx.stroke();
 
+    // Glifo interior: una barra = velocidad, tres barras = disparo triple
     ctx.beginPath();
-    ctx.moveTo(-4, 0);
-    ctx.lineTo( 4, 0);
+    if (this.type === 'boost') {
+      ctx.moveTo(-4, 0);
+      ctx.lineTo( 4, 0);
+    } else {
+      for (const off of [-5, 0, 5]) {
+        ctx.moveTo(off, -4);
+        ctx.lineTo(off,  4);
+      }
+    }
     ctx.stroke();
 
     ctx.restore();
@@ -555,7 +584,8 @@ function deflectAsteroid(a) {
 function killShip() {
   explode(ship.x, ship.y, 14);
   ship.dead = true;
-  ship.speedBoost   = 0;   // el boost no sobrevive a la muerte
+  ship.speedBoost   = 0;   // ningún power-up sobrevive a la muerte
+  ship.tripleShot   = 0;
   ship.shieldActive = false;   // la burbuja se apaga; la energía sí se conserva
   lives--;
   if (lives <= 0) {
@@ -642,7 +672,8 @@ function update(dt) {
     for (const p of powerUps) {
       if (dist(ship, p) < ship.radius + p.radius * 3) {
         p.dead = true;
-        ship.applySpeedBoost();
+        if (p.type === 'boost') ship.applySpeedBoost();
+        else ship.applyTripleShot();
         explode(p.x, p.y, 6);
         break;
       }
@@ -725,10 +756,16 @@ function drawHUD() {
     row += 34;
   }
 
-  // Indicador de velocidad x2 con barra de tiempo restante
+  // Indicadores de power-ups con barra de tiempo restante
   if (!ship.dead && ship.speedBoost > 0) {
-    drawTimerBar(14, row, ship.speedBoost / BOOST_TIME, '#0ff', 'VELOCIDAD x2');
-row += 34;
+    const t = POWERUP_TYPES.boost;
+    drawTimerBar(14, row, ship.speedBoost / BOOST_TIME, t.color, t.label);
+    row += 34;
+  }
+  if (!ship.dead && ship.tripleShot > 0) {
+    const t = POWERUP_TYPES.triple;
+    drawTimerBar(14, row, ship.tripleShot / TRIPLE_TIME, t.color, t.label);
+    row += 34;
   }
 
   // Energía del escudo: visible mientras está activo o aún recargándose

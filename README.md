@@ -66,5 +66,5 @@ propulsor.
 - Partículas de explosión al destruir asteroides
 - Estrella fugaz: más rápida que el resto, no se fragmenta y desaparece a los 7 segundos (barra de vida en la esquina superior izquierda)
 - Escudo: mantén pulsada `Mayús` para alzar una burbuja que rebota los asteroides y la estrella fugaz sin hacer daño. Consume energía mientras la mantienes y se recarga al soltarla (barra `ESCUDO`)
-- Power-up de velocidad x2 con imán de atracción
 - 5 skins para la nave, con cambio en caliente y persistencia entre recargas
+- Power-ups (diamantes que imantan hacia la nave): velocidad x2 o disparo x3 durante 5 segundos, indicados con barra de tiempo en la esquina superior izquierda

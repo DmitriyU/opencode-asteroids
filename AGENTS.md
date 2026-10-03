@@ -80,13 +80,23 @@ returns `false` and the input is lost. Because the flag persists until read, a
 - Constants that are tuning values (speeds, radii, cooldowns) are declared
   inline in their class, not hoisted to a config block.
 
-## Known doc drift
+## Features that exist now (older notes claimed they didn't)
 
-The README's *Descripción* section calls the power-ups "especiales" and mentions
-"la estrella fugaz" without noting that the star expires on a timer rather than
-behaving like other asteroids. Everything it lists does exist in `game.js`; trust
-`game.js` as the source of truth when the prose is vague. The controls and score
-tables in the README *are* accurate.
+- **`ShootingStar extends Asteroid`** — spawned from `initGame`/`nextLevel` and
+  re-spawned every `STAR_SPAWN_EVERY` seconds while none is alive. It inherits
+  `Asteroid.update`, so `ttl` is decremented *after* movement; `split()` returns
+  `[]`, and `points`/`burst` are overridden (300 pts / 22 particles).
+- **`PowerUp`** — 25% drop on asteroid kill (`DROP_CHANCE`), 20s ttl, magnet pull
+  inside `MAGNET_DIST`. Two types in `POWERUP_TYPES`: `boost` (`ship.speedBoost`,
+  doubles `THRUST`) and `triple` (`ship.tripleShot`, `tryShoot` returns 3 bullets
+  offset laterally by `GAP` but with an identical angle). Both last 5s
+  (`BOOST_TIME`/`TRIPLE_TIME`), are cleared by `killShip`, and reset in
+  `Ship.reset()`. The inner glyph in `PowerUp.draw` distinguishes them
+  (1 bar vs 3 bars).
+- **Shield (`Mayús`)** — a bubble of radius `SHIELD_RADIUS` that deflects asteroids when raised (while `shield > SHIELD_MIN`), consumes `SHIELD_DRAIN` per second and recharges at `SHIELD_RECHARGE` when released. Deflected asteroids are pushed outward with a minimum exit velocity and emit a small burst; shield energy persists across re-spawn/level changes but is cleared by `killShip`.
+- All four timer bars (`drawTimerBar`) stack down the top-left corner: shooting
+  star first, then boost, then triple, then shield — `row` advances by 34 each time.
+- **Skins** — data-driven `SKINS` with `drawHull`; `KeyC` cycles, persisted in `localStorage` with id-based keys; HUD icons and flame follow the active skin.
 
 ## Git
 
