@@ -186,8 +186,10 @@ const SKIN_KEY   = 'asteroids.skin';   // clave en localStorage
 const SKIN_TASTE = 1.5;                // segundos que se muestra el nombre al cambiar
 
 // Cada skin define su silueta en coordenadas locales de la nave más sus colores.
-// La punta delantera se mantiene cerca de x = 20 porque la bala sale de NOSE (21),
-// y la trasera cerca de x = -12 para no desalinear el radio de colisión.
+// Campos opcionales: radius (radio de colisión, 12 por defecto) y mult
+// (multiplicador de puntos mientras la skin está activa, 1 por defecto).
+// La bala sale de la punta delantera de la silueta: tryShoot deriva el x más
+// adelantado del hull, así que una silueta más grande no necesita ajustes extra.
 const SKINS = [
   {
     id: 'clasica', name: 'CLÁSICA', stroke: '#fff', flame: 'rgba(255,130,0,0.85)',
@@ -208,6 +210,12 @@ const SKINS = [
   {
     id: 'diamante', name: 'DIAMANTE', stroke: '#c58cff', flame: 'rgba(190,130,255,0.85)',
     hull: [[ 20,  0], [  3,-12], [-13, -4], [-13,  4], [  3, 12]],
+  },
+  {
+    id: 'titan', name: 'TITÁN', stroke: '#c44dff', flame: 'rgba(180,80,255,0.85)',
+    hull: [[ 40,  0], [-24, -18], [-14,  0], [-24,  18]],   // CLÁSICA al doble
+    radius: 24,   // el doble de grande: más fácil de impactar
+    mult:   2,    // ...pero los puntos valen el doble
   },
 ];
 
@@ -252,7 +260,7 @@ const BOOST_TIME  = 5;   // duración del power-up de velocidad x2
 const TRIPLE_TIME = 5;   // duración del power-up de disparo x3
 
 // Escudo: burbuja que se alza manteniendo pulsada Mayús y se recarga al soltarla
-const SHIELD_RADIUS   = 22;    // radio de la burbuja alrededor de la nave
+const SHIELD_GAP      = 10;    // margen de la burbuja sobre el casco de la nave
 const SHIELD_DRAIN    = 0.34;  // energía/s consumida mientras se mantiene
 const SHIELD_RECHARGE = 0.25;  // energía/s recuperada al soltarla
 const SHIELD_MIN      = 0.15;  // carga mínima necesaria para volver a alzarla
@@ -264,13 +272,18 @@ class Ship {
     this.reset();
   }
 
+  // El radio de colisión es un dato de la skin activa: cambiar con C lo ajusta
+  // al instante, incluso a mitad de vida
+  get radius() {
+    return SKINS[skinIndex].radius || 12;
+  }
+
   reset() {
     this.x      = W / 2;
     this.y      = H / 2;
     this.angle  = -Math.PI / 2;
     this.vx     = 0;
     this.vy     = 0;
-    this.radius = 12;
     this.thrusting     = false;
     this.invincible    = 3;
     this.shootCooldown = 0;
@@ -332,9 +345,10 @@ class Ship {
   tryShoot() {
     if (this.shootCooldown > 0 || this.dead) return [];
     this.shootCooldown = 0.2;
-    const NOSE = 21;
-    const ox = this.x + Math.cos(this.angle) * NOSE;
-    const oy = this.y + Math.sin(this.angle) * NOSE;
+    // La bala nace en la punta del casco: el x más adelantado de la silueta + 1
+    const nose = Math.max(...SKINS[skinIndex].hull.map(p => p[0])) + 1;
+    const ox = this.x + Math.cos(this.angle) * nose;
+    const oy = this.y + Math.sin(this.angle) * nose;
 
     if (this.tripleShot <= 0) return [new Bullet(ox, oy, this.angle)];
 
@@ -377,7 +391,7 @@ class Ship {
         ctx.strokeStyle = `rgba(120,220,255,${(0.25 + 0.4 * this.shield).toFixed(2)})`;
         ctx.lineWidth   = 2;
         ctx.beginPath();
-        ctx.arc(0, 0, SHIELD_RADIUS, 0, Math.PI * 2);
+        ctx.arc(0, 0, this.radius + SHIELD_GAP, 0, Math.PI * 2);
         ctx.stroke();
       }
     }
@@ -646,7 +660,8 @@ function update(dt) {
       if (!a.dead && !b.dead && dist(b, a) < a.radius) {
         b.dead = true;
         a.dead = true;
-        score += a.points;
+        // La skin activa puede multiplicar la recompensa (TITÁN puntúa x2)
+        score += a.points * (SKINS[skinIndex].mult || 1);
         explode(a.x, a.y, a.burst);
         if (Math.random() < DROP_CHANCE) powerUps.push(new PowerUp(a.x, a.y));
         newAsteroids.push(...a.split());
@@ -684,7 +699,7 @@ function update(dt) {
   // Escudo: los asteroides rebotan contra la burbuja sin hacer daño
   if (!ship.dead && ship.shieldActive) {
     for (const a of asteroids) {
-      if (dist(ship, a) < SHIELD_RADIUS + a.radius) deflectAsteroid(a);
+      if (dist(ship, a) < ship.radius + SHIELD_GAP + a.radius) deflectAsteroid(a);
     }
   }
 
@@ -709,9 +724,11 @@ function drawLifeIcon(x, y) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(-Math.PI / 2);
-  ctx.scale(0.45, 0.45);
-  // lineWidth escala con la transformación: 2.4 deja un trazo de ~1.2px en pantalla
-  ctx.lineWidth = 2.4;
+  // Escala normalizada al radio de la skin: todos los iconos miden lo mismo
+  const s = 0.45 * 12 / SKINS[skinIndex].radius;
+  ctx.scale(s, s);
+  // lineWidth escala con la transformación: se compensa para dejar ~1.1px en pantalla
+  ctx.lineWidth = 2.4 * 0.45 / s;
   drawHull(SKINS[skinIndex]);
   ctx.restore();
 }

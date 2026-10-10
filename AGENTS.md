@@ -34,13 +34,18 @@ Opening `index.html` via `file://` also works — there are no ES modules, no
   exception is the skin cycle at the very top of `update()`, above every branch,
   because it must work in all three states.
 - **Ship skins** (`SKINS` in game.js): a data-only list of `{id, name, stroke,
-  flame, hull}` where `hull` is a local-space vertex list drawn by the shared
-  `drawHull(skin)` helper — the same data-driven approach as `Asteroid.verts`, so
-  there are no art assets. `Ship.draw()` and `drawLifeIcon()` both call it, which
-  is why the HUD icons track the active hull. Two invariants: every hull's nose
-  stays near `x = +20` (bullets spawn at a fixed `NOSE = 21`) and its rear near
-  `x = -12` (matches `ship.radius = 12`). Add a skin by adding an object; the
-  flame anchor is derived from the hull's rearmost x, so it needs no extra field.
+  flame, hull, radius?, mult?}` where `hull` is a local-space vertex list drawn
+  by the shared `drawHull(skin)` helper — the same data-driven approach as
+  `Asteroid.verts`, so there are no art assets. `Ship.draw()` and
+  `drawLifeIcon()` both call it, which is why the HUD icons track the active
+  hull. `radius` (default 12) is the collision radius, exposed through the
+  `Ship.radius` getter so `KeyC` cycling applies it instantly; `mult` (default
+  1) multiplies every kill at the single scoring line in `update()`. Bullets
+  spawn at the hull's frontmost x + 1 (derived in `tryShoot`), the shield
+  bubble is `ship.radius + SHIELD_GAP`, and `drawLifeIcon` normalizes scale by
+  `radius` — so a 2× hull like `titan` (`radius: 24, mult: 2`) needs no special
+  cases. The flame anchor is derived from the hull's rearmost x, so it needs no
+  extra field.
 - **Skin persistence** is `localStorage` wrapped in try/catch (`file://` and
   private mode throw). `loadSkin()` runs once at bootstrap, deliberately *not*
   inside `initGame()` — a restart must not clobber the choice. Skins are stored by
@@ -93,10 +98,10 @@ returns `false` and the input is lost. Because the flag persists until read, a
   (`BOOST_TIME`/`TRIPLE_TIME`), are cleared by `killShip`, and reset in
   `Ship.reset()`. The inner glyph in `PowerUp.draw` distinguishes them
   (1 bar vs 3 bars).
-- **Shield (`Mayús`)** — a bubble of radius `SHIELD_RADIUS` that deflects asteroids when raised (while `shield > SHIELD_MIN`), consumes `SHIELD_DRAIN` per second and recharges at `SHIELD_RECHARGE` when released. Deflected asteroids are pushed outward with a minimum exit velocity and emit a small burst; shield energy persists across re-spawn/level changes but is cleared by `killShip`.
+- **Shield (`Mayús`)** — a bubble of radius `ship.radius + SHIELD_GAP` that deflects asteroids when raised (while `shield > SHIELD_MIN`), consumes `SHIELD_DRAIN` per second and recharges at `SHIELD_RECHARGE` when released. Deflected asteroids are pushed outward with a minimum exit velocity and emit a small burst; shield energy persists across re-spawn/level changes but is cleared by `killShip`.
 - All four timer bars (`drawTimerBar`) stack down the top-left corner: shooting
   star first, then boost, then triple, then shield — `row` advances by 34 each time.
-- **Skins** — data-driven `SKINS` with `drawHull`; `KeyC` cycles, persisted in `localStorage` with id-based keys; HUD icons and flame follow the active skin.
+- **Skins** — data-driven `SKINS` with `drawHull`; `KeyC` cycles, persisted in `localStorage` with id-based keys; HUD icons and flame follow the active skin. Includes `titan` (TITÁN): a 2× purple CLÁSICA silhouette with `radius: 24` and `mult: 2` — double points while active, but a bigger target.
 
 ## Git
 
