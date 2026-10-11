@@ -1,7 +1,13 @@
 # AGENTS.md
 
 Vanilla HTML5 Canvas Asteroids clone. 4 files, no build step, no dependencies,
-no package.json, no tests, no linter, no CI. `game.js` is the entire game.
+no package.json, no tests, no linter. `game.js` is the entire game.
+CI is two workflows in `.github/workflows/`: `opencode.yml` (runs opencode on
+`/oc` or `/opencode` comments) and `issue-triage.yml` (labels every new issue
+by keyword detection and appends a triage footer — the original body is
+preserved verbatim, footer is appended only). Its GitHub auth is an OIDC
+exchange with the OpenCode GitHub App (`id-token: write`) — no `GITHUB_TOKEN`
+is used; the App must be installed on the repo.
 
 ## Run it
 

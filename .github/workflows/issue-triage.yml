@@ -1,0 +1,99 @@
+name: issue-triage
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  id-token: write
+  issues: write
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    env:
+      OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+      GH_REPO: ${{ github.repository }}
+      ISSUE_NUMBER: ${{ github.event.issue.number }}
+      ISSUE_TITLE: ${{ github.event.issue.title }}
+      ISSUE_BODY: ${{ github.event.issue.body }}
+      ISSUE_AUTHOR: ${{ github.event.issue.user.login }}
+    steps:
+      # Sin secrets.GITHUB_TOKEN: el token se obtiene por intercambio OIDC con
+      # api.opencode.ai, el mismo mecanismo que usa anomalyco/opencode/github.
+      # OJO: endpoint no documentado; si cambia, este step falla de forma explícita.
+      - name: Obtener token de la App de OpenCode (intercambio OIDC)
+        id: token
+        run: |
+          set -e
+          OIDC_RESPONSE="$(curl -sfS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=opencode-github-action")"
+          OIDC="$(printf '%s' "$OIDC_RESPONSE" | jq -r .value)"
+          APP_RESPONSE="$(curl -sfS -X POST -H "Authorization: Bearer $OIDC" \
+            https://api.opencode.ai/exchange_github_app_token)"
+          APP_TOKEN="$(printf '%s' "$APP_RESPONSE" | jq -r .token)"
+          if [ -z "$APP_TOKEN" ] || [ "$APP_TOKEN" = "null" ]; then
+            echo "::error::Intercambio OIDC falló: ¿está instalada la App de OpenCode en este repo?"
+            exit 1
+          fi
+          echo "::add-mask::$APP_TOKEN"
+          echo "GH_TOKEN=$APP_TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Formatear issue y aplicar label
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.GH_TOKEN }}
+        run: |
+          # ── Detección de tipo por keywords (prioridad: bug > enhancement > question) ──
+          TEXT="$(printf '%s\n%s' "$ISSUE_TITLE" "$ISSUE_BODY" | tr '[:upper:]' '[:lower:]')"
+
+          LABEL="needs-triage"
+          COLOR="ededed"
+          DESC="Pendiente de triaje por un mantenedor"
+          TYPE="sin clasificar"
+
+          if printf '%s' "$TEXT" | grep -qE 'bug|error|falla|fallo|roto|broken|crash|no funciona'; then
+            LABEL="bug"
+            COLOR="d73a4a"
+            DESC="Algo no funciona como debería"
+            TYPE="bug"
+          elif printf '%s' "$TEXT" | grep -qE 'feature|enhancement|mejora|sugerencia|idea|propuesta'; then
+            LABEL="enhancement"
+            COLOR="a2eeef"
+            DESC="Nueva funcionalidad o mejora"
+            TYPE="mejora"
+          elif printf '%s' "$TEXT" | grep -qE 'question|duda|pregunta|ayuda|help|cómo'; then
+            LABEL="question"
+            COLOR="d876e3"
+            DESC="Pregunta o solicitud de ayuda"
+            TYPE="pregunta"
+          fi
+
+          # ── Crear la label si no existe (idempotente) ──
+          gh label create "$LABEL" --color "$COLOR" --description "$DESC" 2>/dev/null || true
+
+          # ── Footer con metadatos: el texto original queda intacto arriba ──
+          DATE="$(date -u '+%Y-%m-%d %H:%M UTC')"
+          IFS= read -r -d '' FOOTER <<EOF || true
+
+
+          ---
+
+          ### Triaje automático
+
+          | Campo | Valor |
+          | ----- | ----- |
+          | **Tipo detectado** | ${TYPE} |
+          | **Label aplicada** | \`${LABEL}\` |
+          | **Autor** | @${ISSUE_AUTHOR} |
+          | **Fecha** | ${DATE} |
+
+          #### Checklist de triaje
+          - [ ] Confirmar el tipo detectado
+          - [ ] Asignar prioridad
+          - [ ] Asignar responsable
+          - [ ] Vincular con milestone o proyecto
+          EOF
+
+          # ISSUE_BODY viene por env var: nunca se re-interpreta ni se modifica.
+          # --body recibe original + footer, así el texto del usuario se preserva byte a byte.
+          gh issue edit "$ISSUE_NUMBER" --add-label "$LABEL" --body "${ISSUE_BODY}${FOOTER}"
